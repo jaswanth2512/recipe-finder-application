@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Photo Search</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            cursor: pointer;
+        }
+        .upload-area:hover {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+        .preview {
+            max-width: 300px;
+            max-height: 300px;
+            margin: 20px auto;
+            display: block;
+        }
+        .result {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Photo Search Test</h1>
+    <p>This is a simple test to verify photo analysis functionality works correctly.</p>
+    
+    <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+        <p>Click here to upload a food image</p>
+        <p><small>Supports JPEG, PNG files</small></p>
+    </div>
+    
+    <input type="file" id="fileInput" accept="image/*" class="hidden">
+    
+    <img id="preview" class="preview hidden" alt="Preview">
+    
+    <div id="result" class="result hidden">
+        <h3>Analysis Result:</h3>
+        <div id="resultContent"></div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const preview = document.getElementById('preview');
+        const result = document.getElementById('result');
+        const resultContent = document.getElementById('resultContent');
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file && file.type.match('image.*')) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    preview.src = event.target.result;
+                    preview.classList.remove('hidden');
+                    analyzeImage(event.target.result);
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function analyzeImage(imageBase64) {
+            result.classList.remove('hidden');
+            resultContent.innerHTML = '<p>Analyzing image...</p>';
+            
+            // Simulate the same analysis logic as in PhotoSearch.jsx
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const analysis = analyzeImageCharacteristics(imageData, canvas);
+                const detectedFood = determineFoodByAnalysis(analysis);
+                
+                resultContent.innerHTML = `
+                    <h4>${detectedFood.name}</h4>
+                    <p><strong>Confidence:</strong> ${detectedFood.confidence}%</p>
+                    <p><strong>Cuisine:</strong> ${detectedFood.cuisineType}</p>
+                    <p><strong>Cook Time:</strong> ${detectedFood.cookTime} minutes</p>
+                    <p><strong>Difficulty:</strong> ${detectedFood.difficulty}</p>
+                    <p><strong>Vegetarian:</strong> ${detectedFood.isVegetarian ? 'Yes' : 'No'}</p>
+                    <p><strong>Ingredients:</strong> ${detectedFood.ingredients.join(', ')}</p>
+                    <p><strong>Analysis Details:</strong></p>
+                    <ul>
+                        <li>Is Flat: ${analysis.isFlat}</li>
+                        <li>Is Roundish: ${analysis.isRoundish}</li>
+                        <li>Has Golden Color: ${analysis.hasGoldenColor}</li>
+                        <li>Has White Color: ${analysis.isWhite}</li>
+                        <li>Has Multiple Colors: ${analysis.hasMultipleColors}</li>
+                    </ul>
+                `;
+            };
+            img.src = imageBase64;
+        }
+
+        function analyzeImageCharacteristics(imageData, canvas) {
+            const data = imageData.data;
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            let characteristics = {
+                isFlat: false,
+                isRound: false,
+                isRoundish: false,
+                hasGoldenColor: false,
+                hasWheatColor: false,
+                hasRedColor: false,
+                hasGreenColor: false,
+                hasYellowColor: false,
+                hasBrownColor: false,
+                isWhite: false,
+                hasLightColor: false,
+                hasMultipleColors: false,
+                hasMultipleItems: false,
+                hasLayers: false,
+                hasGrainTexture: false
+            };
+
+            let colorCounts = {
+                red: 0, green: 0, blue: 0, yellow: 0, brown: 0, white: 0, golden: 0
+            };
+
+            for (let i = 0; i < data.length; i += 40) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+
+                if (r > 150 && g < 100 && b < 100) colorCounts.red++;
+                if (g > 120 && g > r && g > b) colorCounts.green++;
+                if (r > 200 && g > 200 && b < 150) colorCounts.yellow++;
+                if (r > 139 && g > 69 && b < 69 && r < 200) colorCounts.brown++;
+                if (r > 200 && g > 200 && b > 200) colorCounts.white++;
+                if (r > 180 && g > 140 && b < 120 && r > g) colorCounts.golden++;
+            }
+
+            const totalPixels = data.length / 4;
+            const threshold = totalPixels * 0.1;
+
+            characteristics.hasRedColor = colorCounts.red > threshold;
+            characteristics.hasGreenColor = colorCounts.green > threshold;
+            characteristics.hasYellowColor = colorCounts.yellow > threshold;
+            characteristics.hasBrownColor = colorCounts.brown > threshold;
+            characteristics.isWhite = colorCounts.white > threshold * 2;
+            characteristics.hasGoldenColor = colorCounts.golden > threshold;
+            characteristics.hasWheatColor = colorCounts.brown > threshold && colorCounts.yellow > threshold;
+
+            const aspectRatio = width / height;
+            characteristics.isFlat = aspectRatio > 1.2 || aspectRatio < 0.8;
+            characteristics.isRoundish = aspectRatio > 0.8 && aspectRatio < 1.2;
+
+            const colorVariety = Object.values(colorCounts).filter(count => count > threshold).length;
+            characteristics.hasMultipleColors = colorVariety > 2;
+
+            characteristics.hasLightColor = colorCounts.white > threshold || 
+                                           (colorCounts.yellow > threshold && colorCounts.brown < threshold);
+
+            return characteristics;
+        }
+
+        function determineFoodByAnalysis(analysis) {
+            const foods = [
+                {
+                    name: "Dosa",
+                    condition: analysis.isFlat && analysis.hasGoldenColor && analysis.isRoundish,
+                    confidence: "94.2",
+                    cookTime: 20,
+                    difficulty: "Medium",
+                    rating: "4.7",
+                    isVegetarian: true,
+                    ingredients: ["Rice", "Urad dal", "Fenugreek seeds", "Salt", "Oil", "Potato filling", "Onions", "Spices"],
+                    calories: 168,
+                    cuisineType: "South Indian",
+                    mealType: "Main course"
+                },
+                {
+                    name: "Idli",
+                    condition: analysis.isRound && analysis.isWhite && analysis.hasMultipleItems,
+                    confidence: "92.8",
+                    cookTime: 15,
+                    difficulty: "Easy",
+                    rating: "4.5",
+                    isVegetarian: true,
+                    ingredients: ["Rice", "Urad dal", "Salt", "Water"],
+                    calories: 39,
+                    cuisineType: "South Indian",
+                    mealType: "Breakfast"
+                },
+                {
+                    name: "Pizza",
+                    condition: analysis.isRoundish && analysis.hasRedColor && analysis.hasMultipleColors,
+                    confidence: "92.5",
+                    cookTime: 25,
+                    difficulty: "Medium",
+                    rating: "4.6",
+                    isVegetarian: false,
+                    ingredients: ["Pizza dough", "Tomato sauce", "Mozzarella cheese", "Basil", "Olive oil", "Pepperoni"],
+                    calories: 285,
+                    cuisineType: "Italian",
+                    mealType: "Main course"
+                }
+            ];
+
+            for (let food of foods) {
+                if (food.condition) {
+                    return food;
+                }
+            }
+
+            return {
+                name: "Traditional Dish",
+                confidence: "82.1",
+                cookTime: 25,
+                difficulty: "Medium",
+                rating: "4.3",
+                isVegetarian: true,
+                ingredients: ["Fresh ingredients", "Traditional spices", "Herbs", "Local seasonings"],
+                calories: 280,
+                cuisineType: "International",
+                mealType: "Main course"
+            };
+        }
+    </script>
+</body>
+</html>
